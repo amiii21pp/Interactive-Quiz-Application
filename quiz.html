@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Interactive Quiz App</title>
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- jQuery -->
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <!-- Chart.js (for optional results chart) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      background: #f8f9fa;
+    }
+    .quiz-card {
+      max-width: 650px;
+      margin: 40px auto;
+      padding: 20px;
+      border-radius: 15px;
+      box-shadow: 0px 4px 10px rgba(0,0,0,0.1);
+      background: #fff;
+    }
+    .option-btn {
+      width: 100%;
+      margin: 5px 0;
+    }
+    .timer {
+      font-size: 18px;
+      font-weight: bold;
+      color: #dc3545;
+    }
+    .result {
+      font-size: 22px;
+      font-weight: bold;
+      color: #198754;
+    }
+    #progress-bar {
+      transition: width 0.6s ease-in-out;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="quiz-card">
+      <h3 class="text-center mb-3">Interactive Quiz</h3>
+
+      <!-- Progress Bar -->
+      <div class="mb-3">
+        <div class="d-flex justify-content-between">
+          <small id="progress-text">Question 1 of 10</small>
+          <small id="score-text">Score: 0</small>
+        </div>
+        <div class="progress" style="height: 20px;">
+          <div id="progress-bar" class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <div id="quiz-container">
+        <p id="question" class="fw-bold"></p>
+        <div id="options" class="mb-3"></div>
+        <div class="d-flex justify-content-between align-items-center">
+          <span class="timer">Time Left: <span id="time">15</span>s</span>
+          <button id="next-btn" class="btn btn-primary">Next</button>
+        </div>
+      </div>
+
+      <!-- Result Section -->
+      <div id="result-container" class="text-center" style="display:none;">
+        <p class="result"></p>
+
+        <!-- Chart.js canvas (hidden by default, enable if needed) -->
+        <canvas id="resultChart" width="300" height="300" style="margin: 20px auto; display:none;"></canvas>
+
+        <button id="restart-btn" class="btn btn-success">Restart Quiz</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const allQuestions = [
+      {question: "What does HTML stand for?", options: ["Hyper Trainer Marking Language", "HyperText Markup Language", "HighText Machine Language", "Hyper Tool Multi Language"], correct: 1},
+      {question: "Which property is used to change background color in CSS?", options: ["color", "background", "background-color", "bgcolor"], correct: 2},
+      {question: "Which keyword is used to define a function in JavaScript?", options: ["func", "fn", "function", "define"], correct: 2},
+      {question: "Which tag defines the largest heading in HTML?", options: ["h1", "h2", "h3", "h4"], correct: 0},
+      {question: "Which method is used to hide an element in jQuery?", options: ["conceal()", "hide()", "remove()", "show()"], correct: 1},
+      {question: "Which company developed Java?", options: ["Sun Microsystems", "Microsoft", "Apple", "Oracle"], correct: 0},
+      {question: "Inside which HTML element do we put JavaScript?", options: ["script", "javascript", "js", "code"], correct: 0},
+      {question: "Which symbol is used for comments in CSS?", options: ["//", "/* */", "!-- --", "#"], correct: 1},
+      {question: "What does CSS stand for?", options: ["Colorful Style Sheets", "Creative Style Sheets", "Cascading Style Sheets", "Computer Style Sheets"], correct: 2},
+      {question: "Which operator is used to assign a value to a variable in JavaScript?", options: ["-", "=", "==", "==="], correct: 1},
+      {question: "Which HTML attribute is used to define inline styles?", options: ["class", "style", "font", "styles"], correct: 1},
+      {question: "What is the default display value for a <div> element?", options: ["inline", "block", "flex", "inline-block"], correct: 1}
+    ];
+
+    let quizData = [];
+    let currentQuestion = 0;
+    let score = 0;
+    let timer;
+    let timeLeft = 15;
+
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    function startQuiz() {
+      currentQuestion = 0;
+      score = 0;
+      $("#quiz-container").show();
+      $("#result-container").hide();
+      $("#resultChart").hide();
+
+      quizData = shuffle([...allQuestions]).slice(0, 10);
+      updateProgress("reset");
+      loadQuestion();
+    }
+
+    function loadQuestion() {
+      const qData = quizData[currentQuestion];
+
+      let options = qData.options.map((opt, i) => ({ text: opt, index: i }));
+      options = shuffle(options);
+
+      $("#question").text(`Q${currentQuestion + 1}. ${qData.question}`);
+      $("#options").empty();
+
+      options.forEach(opt => {
+        $("#options").append(
+          `<button class="btn btn-outline-primary option-btn" data-index="${opt.index}">${opt.text}</button>`
+        );
+      });
+
+      $("#options").data("correct", qData.correct);
+
+      $("#time").text(timeLeft);
+      startTimer();
+      updateProgress("neutral");
+    }
+
+    function startTimer() {
+      clearInterval(timer);
+      timeLeft = 15;
+      timer = setInterval(() => {
+        timeLeft--;
+        $("#time").text(timeLeft);
+        if (timeLeft <= 0) {
+          clearInterval(timer);
+          $("#next-btn").click();
+        }
+      }, 1000);
+    }
+
+    $(document).on("click", ".option-btn", function() {
+      let selected = $(this).data("index");
+      let correct = $("#options").data("correct");
+
+      if (selected === correct) {
+        $(this).removeClass("btn-outline-primary").addClass("btn-success");
+        score++;
+        updateProgress("correct");
+      } else {
+        $(this).removeClass("btn-outline-primary").addClass("btn-danger");
+        $(`.option-btn[data-index='${correct}']`).removeClass("btn-outline-primary").addClass("btn-success");
+        updateProgress("wrong");
+      }
+      $(".option-btn").prop("disabled", true);
+      clearInterval(timer);
+    });
+
+    $("#next-btn").click(function() {
+      currentQuestion++;
+      if (currentQuestion < quizData.length) {
+        loadQuestion();
+      } else {
+        showResults();
+      }
+    });
+
+    $("#restart-btn").click(function() {
+      startQuiz();
+    });
+
+    function updateProgress(state = "neutral") {
+      $("#progress-text").text(`Question ${currentQuestion + 1} of ${quizData.length}`);
+      $("#score-text").text(`Score: ${score}`);
+      const progress = ((currentQuestion) / quizData.length) * 100;
+      $("#progress-bar")
+        .css("width", `${progress}%`)
+        .removeClass("bg-success bg-danger bg-primary");
+
+      if (state === "correct") {
+        $("#progress-bar").addClass("bg-success");
+      } else if (state === "wrong") {
+        $("#progress-bar").addClass("bg-danger");
+      } else {
+        $("#progress-bar").addClass("bg-primary");
+      }
+    }
+
+    function showResults() {
+      $("#quiz-container").hide();
+      $("#result-container").show();
+      $(".result").text(`You scored ${score} out of ${quizData.length}`);
+
+      // OPTION 1: Just text result (default)
+      // Nothing else needed
+
+      // OPTION 2: Show chart (uncomment below to enable)
+      
+      $("#resultChart").show();
+      new Chart(document.getElementById("resultChart"), {
+        type: "pie",
+        data: {
+          labels: ["Correct", "Wrong"],
+          datasets: [{
+            data: [score, quizData.length - score],
+            backgroundColor: ["#28a745", "#dc3545"]
+          }]
+        }
+      });
+      
+    }
+
+    startQuiz();
+  </script>
+</body>
+</html>
